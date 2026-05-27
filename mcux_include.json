@@ -1,0 +1,37 @@
+{
+  "version": 7,
+  "cmakeMinimumRequired": {
+    "major": 3
+  },
+  "configurePresets": [
+    {
+      "name": "debug-env",
+      "displayName": "debug-env",
+      "hidden": true,
+      "environment": {
+        "ARMGCC_DIR": "/usr/local/mcuxpressoide-25.6.136/ide/tools",
+        "SdkRootDirPath": "/home/main/Documents/mcx-npu-rtos/sdks/mcx-npu-rtos_sdk",
+        "MCUX_VENV_PATH": "/home/main/.mcuxpressotools/.mcux-venv-3.12/bin",
+        "PATH": "$env{MCUX_VENV_PATH}${pathListSep}$penv{PATH}",
+        "POSTPROCESS_UTILITY": "/home/main/.mcuxpressotools/mcux-fixelf-14.2.2/mcux-fixelf",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "cacheVariables": {}
+    },
+    {
+      "name": "release-env",
+      "displayName": "release-env",
+      "hidden": true,
+      "environment": {
+        "ARMGCC_DIR": "/usr/local/mcuxpressoide-25.6.136/ide/tools",
+        "SdkRootDirPath": "/home/main/Documents/mcx-npu-rtos/sdks/mcx-npu-rtos_sdk",
+        "MCUX_VENV_PATH": "/home/main/.mcuxpressotools/.mcux-venv-3.12/bin",
+        "PATH": "$env{MCUX_VENV_PATH}${pathListSep}$penv{PATH}",
+        "POSTPROCESS_UTILITY": "/home/main/.mcuxpressotools/mcux-fixelf-14.2.2/mcux-fixelf",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "cacheVariables": {}
+    }
+  ],
+  "buildPresets": []
+}

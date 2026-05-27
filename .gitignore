@@ -1,0 +1,30 @@
+# Build outputs
+build/
+debug/
+release/
+
+# MCUXpresso SDK symlink (points outside the project tree)
+__repo__
+
+# Local editor / tool config
+.vscode/
+.claude/
+
+# Common artifacts
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor backups
+*.swp
+*.swo
+*~
+*.bak
