@@ -43,6 +43,7 @@ extern "C" {
     TaskContext * PendSV_Handler_Main(uint32_t *sp, uint32_t *sp_lim, uint32_t exc_Return);
 }
 
+//task's minimum size is 75 words
 void rtos_task_init(const char * name, void * function, uint32_t stack_size);
 void StartScheduler(void);
 
@@ -63,7 +64,7 @@ uint32_t get_task_count(void);
 //check if stack size is healthy
 void resize_stack(uint32_t task_id);
 
-
+bool is_in_danger(uint32_t task_id);
 
 //TODO
 void task_signal(uint32_t task_id, TaskSignal signal);

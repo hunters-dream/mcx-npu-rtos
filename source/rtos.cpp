@@ -22,6 +22,13 @@ extern "C" void TerminateTask(void)
 
 void rtos_task_init(const char * name, void * function, uint32_t stack_size)
 {
+    if (stack_size <= NORM_STACK_FRAME_SIZE + NUM_CALLEE_REGS)
+    {
+        PRINTF("stack_size %lu too small (min %u)\r\n",
+               (unsigned long)stack_size, NORM_STACK_FRAME_SIZE + NUM_CALLEE_REGS + 1u);
+        __builtin_trap();
+    }
+
     uint32_t * stack_base =  find_stack_region(stack_size);
     if (stack_base == nullptr)
     {
@@ -114,11 +121,17 @@ extern "C" TaskContext *PendSV_Handler_Main(uint32_t *sp, uint32_t *sp_lim, uint
     do {
         current_task_id++;
         if (current_task_id >= task_count) current_task_id = 0;
-    } while (tasks[current_task_id].getState() != TaskState::ACTIVE
-         && current_task_id != start);
+
+        //check if the next active is in danger usage zone
+        if(tasks[current_task_id].getState() == TaskState::ACTIVE && is_in_danger(current_task_id))
+        {
+            tasks[current_task_id].SetState(TaskState::DEAD);
+        }
+
+    } while (tasks[current_task_id].getState() != TaskState::ACTIVE && current_task_id != start);
 
     if (tasks[current_task_id].getState() != TaskState::ACTIVE) {
-        __builtin_trap();
+        __builtin_trap(); //crush if idle task was corrupted somehow
     }
 
 
@@ -192,7 +205,7 @@ void StartScheduler(void)
 
 
 
-bool task_in_danger(uint32_t task_id)
+bool is_in_danger(uint32_t task_id)
 {
     uint32_t *sp        = tasks[task_id].getSP();
     uint32_t *limit     = tasks[task_id].getSPLimit();
@@ -202,6 +215,19 @@ bool task_in_danger(uint32_t task_id)
     return (uint32_t)(sp - limit) <= danger;
 }
 
+
+size_t estimate_task_empty_space(uint32_t task_id)
+{
+    uint32_t *base  = tasks[task_id].getSPLimit();
+    uint32_t  total = tasks[task_id].getStackSize() - NORM_STACK_FRAME_SIZE;
+    size_t    count = 0;
+    for (uint32_t i = 0; i < total; i++)
+    {
+        if (base[i] == STACK_PAINT) count++;
+        else break;
+    }
+    return count;
+}
 
 size_t task_size(uint32_t task_id)
 {
@@ -252,6 +278,16 @@ void task_stack_map(uint32_t task_id, uint32_t width)
     while (n < 31)             { name_col[n++] = ' '; }
     name_col[31] = '\0';
 
-    PRINTF("%s %2u %s\r\n", name_col, task_id, buf);
+    const char *state_str;
+    switch (tasks[task_id].getState()) {
+        case TaskState::ACTIVE: state_str = "ACTV "; break;
+        case TaskState::PAUSED: state_str = "PAUSE"; break;
+        case TaskState::DEAD:   state_str = "DEAD "; break;
+        default:                state_str = "?????"; break;
+    }
+
+    uint32_t used = (uint32_t)task_size(task_id);
+    uint32_t max  = tasks[task_id].getStackSize();
+    PRINTF("%s %2u %s %s %4u/%u\r\n", name_col, task_id, state_str, buf, used, max);
 }
 

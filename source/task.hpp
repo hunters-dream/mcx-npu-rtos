@@ -36,7 +36,7 @@ private:
     uint32_t        m_stack_size;
     uint32_t        m_id;
     TaskSignal      m_signal;
-    TaskState       state;
+    TaskState       m_state;
     char            m_name[32];
 
 public:
@@ -46,7 +46,7 @@ public:
     Task(const char * name, void *entry, uint32_t stack_size, uint32_t id)
         : m_ctx{nullptr, nullptr, 0},
           m_entry(entry), m_stack_size(stack_size), m_id(id),
-          m_signal(TaskSignal::NONE), state(TaskState::ACTIVE) {
+          m_signal(TaskSignal::NONE), m_state(TaskState::ACTIVE) {
 
             strncpy(m_name, name, sizeof(m_name) - 1);
             m_name[sizeof(m_name) - 1] = '\0';
@@ -63,8 +63,10 @@ public:
     uint32_t   *getSP()        const { return m_ctx.sp; }
     uint32_t   *getSPLimit()   const { return m_ctx.sp_limit; }
     uint32_t    getExcReturn() const { return m_ctx.excReturn; }
-    TaskState   getState()     const { return state; }
+    TaskState   getState()     const { return m_state; }
+    
 
+    void       SetState(TaskState new_state)         {m_state = new_state; }
     void setSignal(TaskSignal signal)      { m_signal       = signal; }
     void setSP(uint32_t *sp)               { m_ctx.sp        = sp; }
     void setSPLimit(uint32_t *sp_limit)    { m_ctx.sp_limit  = sp_limit; }
