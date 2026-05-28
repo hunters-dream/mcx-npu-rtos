@@ -43,7 +43,7 @@ extern "C" {
     TaskContext * PendSV_Handler_Main(uint32_t *sp, uint32_t *sp_lim, uint32_t exc_Return);
 }
 
-void rtos_task_init(void * function, uint32_t stack_size);
+void rtos_task_init(const char * name, void * function, uint32_t stack_size);
 void StartScheduler(void);
 
 

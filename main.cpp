@@ -10,6 +10,7 @@ void task_led_signal(void)
     while (1)
     {
         GPIO_PortToggle(BOARD_LED_GPIO, 1u << BOARD_LED_GPIO_PIN);
+        for (volatile int i = 0; i < 1000000; i++);
     }
 }
 
@@ -28,14 +29,17 @@ void task_growing_stack(void)
 
 void task_monitor(void)
 {
+    uint32_t monitor_step = 64;
     while (1)
     {
         for (uint32_t id = 0; id < get_task_count(); id++)
         {
-            task_stack_map(id, 512);
+            task_stack_map(id, monitor_step);
 
 
         }
+
+        PRINTF("\r\n");
 
 
         for (volatile int i = 0; i < 2000000; i++);
@@ -54,7 +58,7 @@ void npu_task(void)
 }
 
 
-extern  void task_monitor(void);
+
 
 int main(void)
 {
@@ -67,8 +71,8 @@ int main(void)
 
     uint32_t led_desired_stack_size = 128u;
 
-    rtos_task_init(reinterpret_cast<void *>(task_led_signal), led_desired_stack_size);
-    rtos_task_init(reinterpret_cast<void*> (task_monitor),1024u );
+    rtos_task_init("led",reinterpret_cast<void *>(task_led_signal), led_desired_stack_size);
+    rtos_task_init("sysmonitor",reinterpret_cast<void*> (task_monitor),1024u );
 
     StartScheduler();
 }

@@ -3,9 +3,7 @@
 #include <new>
 #include "rtos.hpp"
 #include "fsl_device_registers.h"
-/*******************************************************************************
- * Variables
- ******************************************************************************/
+
 
 static uint32_t psp_stack[PSP_STACK_POOL_SIZE];
 uint32_t *PSPBase = psp_stack;
@@ -22,7 +20,7 @@ extern "C" void TerminateTask(void)
     __builtin_trap(); // crash if any task was finished
 }
 
-void rtos_task_init(void * function, uint32_t stack_size)
+void rtos_task_init(const char * name, void * function, uint32_t stack_size)
 {
     uint32_t * stack_base =  find_stack_region(stack_size);
     if (stack_base == nullptr)
@@ -32,7 +30,7 @@ void rtos_task_init(void * function, uint32_t stack_size)
     }
   
     uint32_t id = task_count;
-    new (&tasks[id]) Task(function, stack_size, id); //placement new
+    new (&tasks[id]) Task(name,function, stack_size, id); //placement new
     task_count++;
 
 
@@ -66,7 +64,7 @@ uint32_t * find_stack_region(uint32_t stack_size)
     uint32_t * region = PSPBase;
 
 
-    //find if we can replace dead task
+    //find if a dead task can be replaced
     for(uint32_t i = 0; i < task_count; i++)
     {
 
@@ -106,14 +104,28 @@ extern "C" TaskContext *PendSV_Handler_Main(uint32_t *sp, uint32_t *sp_lim, uint
         return tasks[current_task_id].getContext();
     }
 
+    //store the context of outgoing task on it's stack
     tasks[current_task_id].setSP(sp);
     tasks[current_task_id].setSPLimit(sp_lim);
     tasks[current_task_id].setExcReturn(exc_Return);
 
-    current_task_id++;
-    if (current_task_id >= task_count) current_task_id = 0;
+    uint32_t start = current_task_id;
 
-    return tasks[current_task_id].getContext();
+    do {
+        current_task_id++;
+        if (current_task_id >= task_count) current_task_id = 0;
+    } while (tasks[current_task_id].getState() != TaskState::ACTIVE
+         && current_task_id != start);
+
+    if (tasks[current_task_id].getState() != TaskState::ACTIVE) {
+        __builtin_trap();
+    }
+
+
+
+
+
+    return tasks[current_task_id].getContext(); // store the pointer of the next task in R0
 }
 
 
@@ -121,30 +133,30 @@ extern "C" TaskContext *PendSV_Handler_Main(uint32_t *sp, uint32_t *sp_lim, uint
 extern "C" __attribute__((naked)) void PendSV_Handler(void)
 {
     __asm(
-        "TST      LR,     #0x4                \n"
-        "ITTEE    EQ                          \n"
-        "MRSEQ    R0,     MSP                 \n"
-        "MRSEQ    R1,     MSPLIM              \n"
-        "MRSNE    R0,     PSP                 \n"
-        "MRSNE    R1,     PSPLIM              \n"
-        "MOV      R2,     LR                  \n"
+        "TST      LR,     #0x4                \n" //set EQ if we came from MSP, NE if we came from PSP.
+        "ITTEE    EQ                          \n" //conditionally execute up to four instructions without branches
+        "MRSEQ    R0,     MSP                 \n" //  (only if EQ)
+        "MRSEQ    R1,     MSPLIM              \n" //  (only if EQ)
+        "MRSNE    R0,     PSP                 \n" //  (only if NE)
+        "MRSNE    R1,     PSPLIM              \n" //  (only if NE)
+        "MOV      R2,     LR                  \n" //  Set the third argument for pendSV_Handler
 
-        "STMDB    R0!,    {R4-R11}            \n"
-        "TST      LR,     #0x10               \n"
+        "STMDB    R0!,    {R4-R11}            \n" // stores R4 through R11 onto the stack (calee-saved regs)
+        "TST      LR,     #0x10               \n" // test if FPU was in use
         "IT       EQ                          \n"
-        "VSTMDBEQ R0!,    {S16-S31}           \n"
+        "VSTMDBEQ R0!,    {S16-S31}           \n" // stores S16-S31 calee-saved FPU regs
 
         "BL       PendSV_Handler_Main         \n"
-        "LDR      LR,     [R0, #8]            \n"
-        "LDR      R1,     [R0, #4]            \n"
-        "LDR      R0,     [R0, #0]            \n"
+        "LDR      LR,     [R0, #8]            \n" //
+        "LDR      R1,     [R0, #4]            \n" // load incoming sp/splim/exc_return
+        "LDR      R0,     [R0, #0]            \n" // 
 
         "TST      LR,     #0x10               \n"
         "IT       EQ                          \n"
-        "VLDMIAEQ R0!,    {S16-S31}           \n"
-        "LDMIA    R0!,    {R4-R11}            \n"
+        "VLDMIAEQ R0!,    {S16-S31}           \n" //pop FPU regs
+        "LDMIA    R0!,    {R4-R11}            \n" //pop R4-R11
 
-        "TST      LR,     #0x4                \n"
+        "TST      LR,     #0x4                \n" //set EQ if we came from MSP, NE if we came from PSP.
         "ITT      NE                          \n"
         "MSRNE    PSPLIM, R1                  \n"
         "MSRNE    PSP,    R0                  \n"
@@ -158,8 +170,19 @@ extern "C" void SysTick_Handler(void)
     __DSB();
 }
 
+static void idle_task(void)
+{
+    while (1) {
+        __WFI();   // wait for interrupt — sleeps until next SysTick 
+    }
+}
+
+
+
 void StartScheduler(void)
 {
+    rtos_task_init("idle_task",reinterpret_cast<void*>(idle_task),128);
+
     NVIC_SetPriority(PendSV_IRQn, 0xFF);
     NVIC_SetPriority(SysTick_IRQn, 0x11);
     SysTick_Config(SystemCoreClock / 1000);
@@ -222,7 +245,13 @@ void task_stack_map(uint32_t task_id, uint32_t width)
     buf[1 + width] = ']';
     buf[2 + width] = '\0';
 
-    PRINTF("task %u %s\r\n", task_id, buf);
-    PRINTF("STATUS: %u \r\n", task_in_danger(task_id));
+    char name_col[32];
+    const char *name = tasks[task_id].GetName();
+    uint32_t n = 0;
+    while (n < 31 && name[n]) { name_col[n] = name[n]; n++; }
+    while (n < 31)             { name_col[n++] = ' '; }
+    name_col[31] = '\0';
+
+    PRINTF("%s %2u %s\r\n", name_col, task_id, buf);
 }
 
