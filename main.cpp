@@ -38,7 +38,7 @@ static volatile bool keep_eating = true;
 __attribute__((noinline)) void stack_eater(void)
 {
     volatile uint32_t buf[16];
-    (void)buf;
+    (void)buf; //suppress warning
     for (volatile int i = 0; i < 300000; i++);
     if (keep_eating)
         stack_eater();
